@@ -20,6 +20,7 @@ Route::get('/pay/wxpay','OrdersController@wxPay');
 Route::get('/pay/wxpay/success','OrdersController@wxPaySuccess');
 
 
-//微信电脑端支付
+//支付宝电脑端支付
 Route::get('/pay/alipay','OrdersController@aliPay');
 Route::get('/pay/alipay/success','OrdersController@aliPaySuccess');
+Route::post('/payment/notify','OrdersController@notify');

@@ -19,8 +19,8 @@ class OrdersController extends Controller
         \Pingpp\Pingpp::setPrivateKeyPath(public_path() . '/rsa_private_key.pem');
 
         $charge = \Pingpp\Charge::create([
-            'order_no'  =>  time().rand(1000,9999),
-            'amount'    => '100',//订单总金额, 人民币单位：分（如订单总金额为 1 元，此处请填 100）
+            'order_no'  =>  date('YmdHis').rand(1000,4999),
+            'amount'    => '1000',//订单总金额, 人民币单位：分（如订单总金额为 1 元，此处请填 100）
             'app'       => ['id' => env('PING_APP_ID')],
             'channel'   => 'wx_pub',
             'currency'  => 'cny',
@@ -53,7 +53,7 @@ class OrdersController extends Controller
         \Pingpp\Pingpp::setPrivateKeyPath(public_path('rsa_private_key.pem'));
 
         $charge = \Pingpp\Charge::create([
-            'order_no'  =>  time().rand(1000,9999),
+            'order_no'  =>  date('YmdHis').rand(5000,9999),
             'amount'    => '100',//订单总金额, 人民币单位：分（如订单总金额为 1 元，此处请填 100）
             'app'       => ['id' => env('PING_APP_ID')],
             'channel'   => 'alipay_pc_direct',
@@ -101,5 +101,46 @@ class OrdersController extends Controller
         $response = curl_exec($curl);
         curl_close($curl);
         return $response;
+    }
+
+    public function notify()
+    {
+        $event_json = file_get_contents("php://input");
+        $event = json_decode($event_json,true);
+
+        //对异步通知做处理
+        if (!isset($event['type'])) {
+            header($_SERVER['SERVER_PROTOCOL'] . ' 400 Bad Request');
+            exit("fail");
+        }
+        switch ($event['type']) {
+            case "charge.succeeded":
+                $charge = $event['data']['object'];
+                $bodies = explode('_', $charge['body']);
+                //创建支付记录
+                Order::create([
+                    'billing_id' => $charge['id'],
+                    'type' => $charge['object'],
+                    'subject' => $charge['subject'],
+                    'order_no' => $charge['order_no'],
+                    'transaction_no' => $charge['transaction_no'],
+                    'user_id' => $bodies[0],
+                    'goods_id' => $bodies[1]
+                ]);
+                //更新订单支付状态
+                UserGoods::where('order_no',$charge['order_no'])->update(['is_pay' => 1]);
+
+                http_response_code(200);
+
+                // header($_SERVER['SERVER_PROTOCOL'] . ' 200 OK');
+                break;
+            case "refund.succeeded":
+                // 开发者在此处加入对退款异步通知的处理代码
+                header($_SERVER['SERVER_PROTOCOL'] . ' 200 OK');
+                break;
+            default:
+                header($_SERVER['SERVER_PROTOCOL'] . ' 400 Bad Request');
+                break;
+        }
     }
 }
